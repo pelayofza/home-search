@@ -1,0 +1,50 @@
+{
+  "total": 3,
+  "totalPages": 2,
+  "actualPage": 1,
+  "itemsPerPage": 50,
+  "elementList": [
+    {
+      "propertyCode": "106712345",
+      "price": 795000,
+      "size": 128.0,
+      "rooms": 3,
+      "bathrooms": 2,
+      "floor": "4",
+      "hasLift": true,
+      "exterior": true,
+      "neighborhood": "Montecarmelo",
+      "district": "Fuencarral",
+      "municipality": "Madrid",
+      "latitude": 40.497,
+      "longitude": -3.708,
+      "url": "https://www.idealista.com/inmueble/106712345/",
+      "thumbnail": "https://img.idealista.com/blur/106712345.jpg",
+      "propertyType": "flat",
+      "detailedType": {"typology": "flat"},
+      "description": "Piso exterior reformado con terraza y garaje."
+    },
+    {
+      "propertyCode": "106799999",
+      "price": 1050000,
+      "size": 240.0,
+      "rooms": 4,
+      "bathrooms": 3,
+      "floor": "bj",
+      "hasLift": false,
+      "neighborhood": "Mirasierra",
+      "latitude": 40.4855,
+      "longitude": -3.7205,
+      "url": "https://www.idealista.com/inmueble/106799999/",
+      "propertyType": "chalet",
+      "detailedType": {"typology": "chalet", "subTypology": "independantHouse"},
+      "description": "Chalet independiente con jardín y piscina."
+    },
+    {
+      "propertyCode": "SIN-PRECIO",
+      "size": 100.0,
+      "rooms": 3,
+      "url": "https://www.idealista.com/inmueble/roto/"
+    }
+  ]
+}

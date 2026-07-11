@@ -1,0 +1,19 @@
+.env
+
+# La BD local es tuya: contiene tus valoraciones. La de verdad la genera el cron
+# de GitHub y vive en la rama `datos`.
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# El caché de POIs SÍ va al repositorio: lo necesita GitHub Actions para puntuar
+# la localización, cambia una vez al año, y así no machacamos Overpass en cada
+# ejecución.
+!data/pois.json
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/

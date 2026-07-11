@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block titulo %}{{ a.precio | miles }} € · {{ a.barrio }}{% endblock %}
+{% block subtitulo %}{{ a.barrio }}{% endblock %}
+
+{% block contenido %}
+<article class="ficha">
+  <div class="cabecera">
+    <div>
+      <h1>{{ a.precio | miles }} €
+        {% if a.precio < a.precio_inicial %}
+          <span class="baja">▼ {{ (a.precio_inicial - a.precio) | miles }} € desde que lo vimos</span>
+        {% endif %}
+      </h1>
+      <p class="sutil">
+        {{ a.tipo | capitalize }} · {{ a.m2 }} m² · {{ a.habitaciones }} hab · {{ a.banos }} baños ·
+        {{ (a.precio / a.m2) | round | int | miles }} €/m²
+        {% if not a.activo %} · <span class="aviso">ya no está publicado</span>{% endif %}
+      </p>
+      <p class="sutil">
+        <!-- Días desde que LO VIMOS, no desde que se publicó: la API no da la
+             fecha de publicación de forma fiable y confundirlas sería mentir. -->
+        Lo vemos publicado desde hace {{ a.dias_vistos }} día{{ 's' if a.dias_vistos != 1 }}
+        {%- if a.bajadas %} · ha bajado {{ a.bajadas }} {{ 'vez' if a.bajadas == 1 else 'veces' }}{% endif %}
+      </p>
+      <p><a href="{{ a.url }}" target="_blank" rel="noopener">Ver el anuncio original ↗</a></p>
+
+      {% include "_voto.html" %}
+    </div>
+    {% if a.score is not none %}
+      <div class="nota grande {{ 'buena' if a.score >= 65 else 'mala' if a.score < 45 else '' }}">
+        {{ a.score | round | int }}
+      </div>
+    {% endif %}
+  </div>
+
+  {% if a.historico | length > 1 %}
+  <section>
+    <h2>Evolución del precio</h2>
+    <!-- Escalonada, no interpolada: solo guardamos el precio cuando cambia, así que
+         una línea diagonal fingiría una bajada gradual que nunca ocurrió. -->
+    <svg viewBox="0 0 {{ grafica.ancho }} {{ grafica.alto }}" class="grafica">
+      <polyline points="{{ grafica.puntos }}" fill="none" stroke="#0b5ed7" stroke-width="2"/>
+      {% for p in grafica.escalones %}
+        <circle cx="{{ p.x }}" cy="{{ p.y }}" r="4" fill="#0b5ed7"/>
+        <text x="{{ p.x }}" y="{{ p.y - 10 }}" text-anchor="middle" class="etiqueta">
+          {{ p.precio | miles }} €
+        </text>
+        <text x="{{ p.x }}" y="{{ grafica.alto - 2 }}" text-anchor="middle" class="etiqueta sutil">
+          {{ p.fecha }}
+        </text>
+      {% endfor %}
+    </svg>
+  </section>
+  {% else %}
+    <p class="sutil">Sin cambios de precio desde que lo vimos por primera vez.</p>
+  {% endif %}
+
+  {% if a.negociacion %}
+  <section>
+    <h2>Margen de negociación</h2>
+    <p class="margen">
+      ~{{ a.negociacion.margen_pct | round | int }}%
+      <span class="sutil">→ apunta a unos {{ a.negociacion.objetivo | miles }} €</span>
+    </p>
+    {% if a.negociacion.motivos %}
+      <ul>{% for m in a.negociacion.motivos %}<li>{{ m }}</li>{% endfor %}</ul>
+    {% else %}
+      <p class="sutil">Sin señales de flexibilidad: recién visto, sin bajadas y a precio de mercado.</p>
+    {% endif %}
+    <p class="sutil">
+      Es una heurística, no una predicción. No existen datos públicos de precio de
+      cierre, así que nadie puede decirte de verdad cuánto vas a rebajar: esto solo
+      agrega las tres señales que miraría un comprador con experiencia.
+    </p>
+  </section>
+  {% endif %}
+
+  {% set d = a.score_detalle %}
+  {% if d %}
+  <section>
+    <h2>Por qué esta nota</h2>
+    <dl class="desglose">
+      <dt>Precio</dt>
+      <dd>
+        {% if d.precio and d.precio.mediana_m2 %}
+          {{ a.s_precio | round | int }}/100 —
+          {{ d.precio.desviacion_pct | abs }}%
+          {{ 'por debajo' if d.precio.desviacion_pct < 0 else 'por encima' }}
+          de {{ d.precio.mediana_m2 | miles }} €/m²
+          ({{ 'mediana del barrio, n=' ~ d.precio.muestra if d.precio.comparado_con == 'propia'
+              else 'referencia de config.yaml' }})
+          {% if d.precio.saturado %}
+            <br><span class="aviso">Descuento sospechosamente grande: la nota está topada a propósito.</span>
+          {% endif %}
+        {% else %}
+          <span class="sutil">Sin comparables suficientes.</span>
+        {% endif %}
+      </dd>
+
+      <dt>Localización</dt>
+      <dd>
+        {% if d.localizacion %}
+          {{ a.s_localizacion | round | int }}/100 —
+          {% for cat, v in d.localizacion.items() %}
+            {{ cat }} a {{ v.metros }} m{{ ", " if not loop.last }}
+          {% endfor %}
+        {% else %}
+          <span class="sutil">Sin coordenadas: esta dimensión no puntúa y los pesos se reparten entre las demás.</span>
+        {% endif %}
+      </dd>
+
+      <dt>Descripción</dt>
+      <dd>
+        {{ a.s_texto | round | int }}/100
+        {% if d.texto.positivas %}<br>A favor: {{ d.texto.positivas | join(", ") }}{% endif %}
+        {% if d.texto.negativas %}<br><span class="aviso">En contra: {{ d.texto.negativas | join(", ") }}</span>{% endif %}
+      </dd>
+    </dl>
+    {% if d.dimensiones | length < 3 %}
+      <p class="aviso">
+        Nota parcial: calculada solo con {{ d.dimensiones | join(" y ") }}.
+        No es comparable sin más con la de un anuncio que sí tiene las tres dimensiones.
+      </p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>Descripción</h2>
+    <p>{{ a.descripcion }}</p>
+  </section>
+</article>
+{% endblock %}

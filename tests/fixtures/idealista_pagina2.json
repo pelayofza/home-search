@@ -1,0 +1,25 @@
+{
+  "total": 3,
+  "totalPages": 2,
+  "actualPage": 2,
+  "itemsPerPage": 50,
+  "elementList": [
+    {
+      "propertyCode": "106788888",
+      "price": 880000,
+      "size": 180.0,
+      "rooms": 4,
+      "bathrooms": 3,
+      "floor": "ss",
+      "hasLift": false,
+      "exterior": true,
+      "neighborhood": "Sanchinarro",
+      "latitude": 40.4915,
+      "longitude": -3.6595,
+      "url": "https://www.idealista.com/inmueble/106788888/",
+      "propertyType": "chalet",
+      "detailedType": {"typology": "chalet", "subTypology": "semidetachedHouse"},
+      "description": "Adosado en urbanización cerrada con garaje."
+    }
+  ]
+}

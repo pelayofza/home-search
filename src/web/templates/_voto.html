@@ -1,0 +1,11 @@
+<div id="voto" class="votos">
+  {% for valor, etiqueta in [('interesa', '👍 Me interesa'), ('descartado', '👎 Descartar')] %}
+    <button class="boton voto {{ 'activo' if a.opinion == valor }}"
+            hx-post="/opinion/{{ a.source }}/{{ a.property_code }}?valoracion={{ valor }}&vista=voto"
+            hx-target="#voto"
+            hx-swap="outerHTML">{{ etiqueta }}</button>
+  {% endfor %}
+  {% if a.opinion %}
+    <span class="sutil">Pulsa otra vez para retirar tu valoración.</span>
+  {% endif %}
+</div>

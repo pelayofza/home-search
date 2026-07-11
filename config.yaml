@@ -1,0 +1,141 @@
+# Configuración de la búsqueda. Los secretos NO van aquí, van en .env
+
+busqueda:
+  ciudad: Madrid
+  operacion: venta
+
+# OJO: estos filtros deciden qué se NOTIFICA, no qué se guarda. En la BD entra
+# todo lo que devuelve la fuente, por dos razones: para que un anuncio que baja
+# de precio y entra en presupuesto se detecte como BAJADA y no como novedad, y
+# para que la mediana de €/m² se calcule con una muestra que no esté recortada
+# por nuestros propios criterios.
+filtros:
+  precio_min: 0
+  precio_max: 1100000
+  m2_min: 110
+  habitaciones_min: 3
+  banos_min: 1
+
+  tipos:
+    - piso
+    - atico
+    - duplex
+    - chalet
+    - adosado
+    - pareado
+
+  # true -> solo exteriores. Los anuncios que no lo declaran se descartan.
+  # null -> da igual
+  exterior: true
+
+  # Solo se aplica a pisos, áticos, dúplex y estudios: un chalet o un adosado
+  # están siempre a pie de calle.
+  planta_min: 1
+
+  # null = da igual. En estas zonas hay mucho chalet, donde no aplica.
+  ascensor: null
+
+  # Zona norte: Fuencarral-El Pardo, Hortaleza y Chamartín
+  barrios_incluidos:
+    - Mirasierra
+    - Montecarmelo
+    - Arroyo del Fresno
+    - Las Tablas
+    - Sanchinarro
+    - Pinar del Rey
+    - Pinar de Chamartín
+
+  barrios_excluidos: []
+
+  palabras_excluidas:
+    - okupa
+    - ocupada
+    - subasta
+    - nuda propiedad
+
+scoring:
+  pesos:
+    texto: 0.30
+    precio: 0.40
+    localizacion: 0.30
+
+  texto:
+    base: 50
+    positivas:
+      reformado: 8
+      "a estrenar": 8
+      terraza: 10
+      garaje: 8
+      "obra nueva": 6
+      piscina: 5
+      luminoso: 4
+      trastero: 3
+      jardin: 5
+    negativas:
+      "a reformar": -12
+      "para reformar": -12
+      "necesita reforma": -12
+      "sin ascensor": -10
+      "patio interior": -8
+      ruidoso: -6
+      "primera linea de carretera": -8
+
+  precio:
+    min_muestra: 8
+    ventana_dias: 180
+    # -25% respecto a la mediana -> 100 puntos; igual -> 50; +25% -> 0
+    rango_pct: 25
+    # Un descuento mayor que esto NO suma más. Un €/m² un 50% por debajo de la
+    # mediana casi nunca es un chollo: es un bajo, un interior o una ruina, y sin
+    # este tope el ranking se llena de basura barata.
+    saturacion_pct: 35
+    # Mientras no haya muestra propia suficiente. Revisa estos números de vez en
+    # cuando: envejecen.
+    fallback_eur_m2:
+      Mirasierra:          {piso: 4900, casa: 4400}
+      Montecarmelo:        {piso: 4700, casa: 4500}
+      Arroyo del Fresno:   {piso: 4600, casa: 4300}
+      Las Tablas:          {piso: 4800, casa: 4600}
+      Sanchinarro:         {piso: 4700, casa: 4500}
+      Pinar del Rey:       {piso: 4400, casa: 4200}
+      Pinar de Chamartín:  {piso: 4500, casa: 4300}
+
+  localizacion:
+    # d <= optimo -> 100 puntos; d >= malo -> 0; lineal entre medias.
+    umbrales_m:
+      metro:     {optimo: 400,  malo: 1500, peso: 0.35}
+      cercanias: {optimo: 800,  malo: 3000, peso: 0.10}
+      bus:       {optimo: 300,  malo: 1000, peso: 0.10}
+      parque:    {optimo: 300,  malo: 1200, peso: 0.25}
+      hospital:  {optimo: 1500, malo: 6000, peso: 0.20}
+
+api:
+  # OJO: este número te lo tiene que decir Idealista al aprobarte el acceso. No
+  # está publicado en ninguna parte y NO es de autoservicio. Ponlo en cuanto lo
+  # sepas: hasta entonces esto es una suposición, no un dato.
+  cuota_mensual: 100
+  # Peticiones que no se gastan ni queriendo. Quedarte a cero a mitad de mes te
+  # deja ciego hasta el día 1.
+  reserva: 5
+
+  # Lo que se le pide a la API. A PROPÓSITO más ancho que `filtros`: hay que
+  # guardar el chalet de 1,3 M para enterarse el día que baje a 1,05 M y entre en
+  # presupuesto, y para que la mediana del barrio no salga sesgada por nuestros
+  # propios criterios.
+  busqueda:
+    center: "40.4950,-3.7000"   # zona norte de Madrid
+    distance: 5000              # metros
+    precio_max: 1400000         # el filtro son 1.100.000
+    m2_min: 90                  # el filtro son 110
+    habitaciones_min: 3
+
+almacenamiento:
+  db_path: data/listings.db
+
+notificacion:
+  asunto: "🏠 {n} novedad(es): {nuevos} nueva(s), {bajadas} bajada(s) de precio"
+  omitir_si_vacio: true
+  # Solo se notifican las NOVEDADES que lleguen a esta nota. Las bajadas de
+  # precio pasan siempre, sea cual sea su nota: son raras, son accionables y son
+  # la razón de ser de todo esto. null = notificar todo.
+  min_score: 55

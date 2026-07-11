@@ -1,0 +1,25 @@
+{% if not anuncios %}
+  <p class="sutil">Nada que enseñar. Ejecuta <code>python main.py</code>, o quita algún filtro.</p>
+{% else %}
+<table>
+  <thead>
+    <tr>
+      <th>Nota</th>
+      <th>Precio</th>
+      <th>€/m²</th>
+      <th>Vivienda</th>
+      <th>Barrio</th>
+      <th>Variación</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in anuncios %}{% include "_fila.html" %}{% endfor %}
+  </tbody>
+</table>
+<p class="sutil">
+  {{ anuncios | length }} anuncios. Se refresca solo cada 5 minutos.
+  Valorar un anuncio no cambia su nota: sirve para calibrar el scoring más
+  adelante con <code>python main.py --calibrar</code>.
+</p>
+{% endif %}

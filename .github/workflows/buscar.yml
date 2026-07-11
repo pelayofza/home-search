@@ -1,0 +1,108 @@
+name: Buscar vivienda
+
+on:
+  schedule:
+    # Las horas de cron en GitHub son UTC. En horario de verano peninsular
+    # (UTC+2), 06:10 UTC son las 08:10 de la mañana.
+    - cron: "10 6 * * 1-6"   # de lunes a sábado: solo lo publicado esta semana
+    - cron: "10 7 * * 0"     # domingos: barrido completo (el único que ve bajadas)
+  workflow_dispatch:
+    inputs:
+      completo:
+        description: "Barrido completo (gasta más cuota)"
+        type: boolean
+        default: false
+      mock_fase:
+        description: "Solo con la fuente 'mock': 1 = primer día, 2 = al día siguiente (bajadas)"
+        type: choice
+        options: ["1", "2"]
+        default: "1"
+
+# Dos ejecuciones a la vez se pisarían la base de datos y falsearían la cuota.
+concurrency:
+  group: buscar
+  cancel-in-progress: false
+
+env:
+  # De dónde se bajan los anuncios. Está en 'mock' hasta que lleguen las claves
+  # de Idealista: así el circuito entero (buscar → puntuar → email → guardar la
+  # BD) se puede ver funcionando sin API.
+  #
+  # PARA PASAR A PRODUCCIÓN no hace falta tocar este fichero: crea una variable
+  # de repositorio FUENTE=idealista en Settings → Secrets and variables →
+  # Actions → Variables. Esta línea la respeta.
+  FUENTE: ${{ vars.FUENTE || 'mock' }}
+
+jobs:
+  buscar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # para poder empujar la BD a la rama `datos`
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Recuperar la base de datos de la ejecución anterior
+        run: |
+          mkdir -p data
+          if git fetch origin datos 2>/dev/null; then
+            git show origin/datos:listings.db > data/listings.db
+            echo "BD recuperada: $(du -h data/listings.db | cut -f1)"
+          else
+            echo "No hay rama 'datos' todavía: se empieza de cero."
+          fi
+
+      - name: Buscar, puntuar y notificar
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          IDEALISTA_API_KEY: ${{ secrets.IDEALISTA_API_KEY }}
+          IDEALISTA_API_SECRET: ${{ secrets.IDEALISTA_API_SECRET }}
+        run: |
+          # El barrido completo va los domingos y cuando se pide a mano.
+          # Con el mock da igual (siempre devuelve el lote entero), pero así el
+          # circuito es el mismo que será en producción.
+          if [ "${{ github.event.schedule }}" = "10 7 * * 0" ] || \
+             [ "${{ inputs.completo }}" = "true" ]; then
+            echo "::notice::Fuente '$FUENTE', barrido COMPLETO (detecta bajadas de precio)"
+            COMPLETO="--completo"
+          else
+            echo "::notice::Fuente '$FUENTE', barrido de novedades"
+            COMPLETO=""
+          fi
+
+          python main.py --source "$FUENTE" \
+                         --mock-fase "${{ inputs.mock_fase || 1 }}" \
+                         $COMPLETO
+
+      - name: Cuánta cuota queda
+        if: always()
+        run: python main.py --source "$FUENTE" --cuota
+
+      - name: Guardar la base de datos
+        if: always()   # aunque falle el email, el histórico no se pierde
+        run: |
+          test -f data/listings.db || exit 0
+          git config user.name  "home-search bot"
+          git config user.email "bot@users.noreply.github.com"
+
+          # Rama huérfana de un solo commit: la BD es un binario y un commit
+          # diario haría crecer el repositorio sin parar. Aquí solo vive la
+          # última foto, y el histórico de precios ya está DENTRO de la BD.
+          git checkout --orphan datos-nueva
+          git rm -rf --cached . > /dev/null
+          cp data/listings.db listings.db
+          git add -f listings.db
+          git commit -m "BD del $(date -u +%Y-%m-%d\ %H:%M) UTC · fuente $FUENTE"
+          git push --force origin datos-nueva:datos

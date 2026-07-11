@@ -1,0 +1,43 @@
+<tr class="{{ 'descartada' if a.opinion == 'descartado' }}">
+  <td>
+    {% if a.score is not none %}
+      <span class="nota {{ 'buena' if a.score >= 65 else 'mala' if a.score < 45 else '' }}">
+        {{ a.score | round | int }}
+      </span>
+    {% else %}
+      <span class="sutil">—</span>
+    {% endif %}
+  </td>
+  <td class="num"><strong>{{ a.precio | miles }} €</strong></td>
+  <td class="num sutil">{{ (a.precio / a.m2) | round | int | miles }}</td>
+  <td>
+    {{ a.tipo | capitalize }} · {{ a.m2 }} m² · {{ a.habitaciones }} hab
+    {%- if a.exterior == 0 %} · <span class="aviso">interior</span>{% endif %}
+  </td>
+  <td>{{ a.barrio }}</td>
+  <td class="num">
+    {% if a.variacion < 0 %}
+      <span class="baja">▼ {{ (-a.variacion) | miles }} €</span>
+    {% elif a.variacion > 0 %}
+      <span class="sube">▲ {{ a.variacion | miles }} €</span>
+    {% else %}
+      <span class="sutil">—</span>
+    {% endif %}
+  </td>
+  <td class="acciones">
+    <a href="{{ a.url }}" target="_blank" rel="noopener" class="boton" title="Abrir el anuncio original">↗</a>
+    <a href="/anuncio/{{ a.source }}/{{ a.property_code }}" class="boton" title="Ver la ficha">ficha</a>
+
+    <!-- Repinta solo esta fila: no se recarga la tabla ni se pierde el scroll.
+         Volver a pulsar el mismo botón retira la valoración. -->
+    {% for valor, icono, titulo in [
+         ('interesa', '👍', 'Me interesa'),
+         ('descartado', '👎', 'Descartar')] %}
+      <button class="boton voto {{ 'activo' if a.opinion == valor }}"
+              title="{{ titulo }}"
+              hx-post="/opinion/{{ a.source }}/{{ a.property_code }}?valoracion={{ valor }}"
+              hx-target="closest tr"
+              hx-swap="outerHTML">{{ icono }}</button>
+    {% endfor %}
+  </td>
+</tr>

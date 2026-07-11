@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block titulo %}Mercado · home-search{% endblock %}
+{% block subtitulo %}mediana de €/m² por barrio{% endblock %}
+
+{% block contenido %}
+<form>
+  <select name="familia" onchange="this.form.submit()">
+    <option value="piso" {{ 'selected' if familia == 'piso' }}>Pisos, áticos y dúplex</option>
+    <option value="casa" {{ 'selected' if familia == 'casa' }}>Chalets y adosados</option>
+  </select>
+</form>
+
+{% if not grafica.lineas %}
+  <p class="sutil">
+    Todavía no hay suficientes fotos del mercado. Se guarda una al día, y hace falta
+    más de una para dibujar una línea. Vuelve en unos días.
+  </p>
+{% else %}
+  <svg viewBox="0 0 {{ grafica.ancho }} {{ grafica.alto }}" class="grafica ancha">
+    {% for linea in grafica.lineas %}
+      <polyline points="{{ linea.puntos }}" fill="none"
+                stroke="{{ linea.color }}" stroke-width="2"/>
+    {% endfor %}
+    <text x="4" y="{{ grafica.alto - 8 }}" class="etiqueta">{{ grafica.min | miles }} €/m²</text>
+    <text x="4" y="16" class="etiqueta">{{ grafica.max | miles }} €/m²</text>
+    <text x="{{ grafica.ancho - 4 }}" y="{{ grafica.alto - 8 }}" text-anchor="end" class="etiqueta">
+      {{ grafica.fechas[-1] }}
+    </text>
+  </svg>
+
+  <ul class="leyenda">
+    {% for linea in grafica.lineas %}
+      <li>
+        <span class="punto" style="background: {{ linea.color }}"></span>
+        {{ linea.barrio }} — <strong>{{ linea.ultimo | miles }} €/m²</strong>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <p class="sutil">
+    Ojo: esta mediana se calcula con lo que <em>nosotros</em> hemos visto, no con
+    todo el mercado. Los primeros días la muestra es pequeña y la línea se moverá
+    más por cómo crece la muestra que por lo que haga el mercado de verdad.
+  </p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block subtitulo %}{{ total }} anuncios activos{% endblock %}
+
+{% block contenido %}
+<form id="filtros" hx-get="/tabla" hx-target="#tabla" hx-trigger="change, search">
+  <select name="barrio">
+    <option value="">Todos los barrios</option>
+    {% for b in barrios %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+  </select>
+
+  <select name="orden">
+    <option value="score">Mejor nota</option>
+    <option value="bajada">Mayor bajada</option>
+    <option value="precio_m2">Menor €/m²</option>
+    <option value="precio">Menor precio</option>
+    <option value="m2">Más metros</option>
+    <option value="reciente">Más reciente</option>
+  </select>
+
+  <label>
+    Nota mínima
+    <input type="number" name="min_score" min="0" max="100" step="5" placeholder="0">
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="solo_bajadas" value="true">
+    Solo los que han bajado
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="ver_descartados" value="true">
+    Ver los descartados
+  </label>
+</form>
+
+<!-- Los datos solo cambian cuando corre la búsqueda diaria: refrescar cada pocos
+     segundos sería puro teatro. Cada 5 minutos ya es generoso. -->
+<div id="tabla"
+     hx-get="/tabla"
+     hx-trigger="load, every 300s"
+     hx-include="#filtros">
+  <p class="sutil">Cargando…</p>
+</div>
+{% endblock %}
