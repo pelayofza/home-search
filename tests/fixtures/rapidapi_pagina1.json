@@ -1,0 +1,109 @@
+{
+  "success": true,
+  "data": {
+    "filters": {
+      "country": "es",
+      "search_type": "for_sale",
+      "property_type": "homes",
+      "sort_order": "oldest",
+      "minPrice": 0,
+      "maxPrice": 1400000
+    },
+    "total": 3,
+    "totalPages": 2,
+    "currentPage": 1,
+    "itemsPerPage": 50,
+    "numPaginations": 5,
+    "paginable": true,
+    "searchTitle": "Madrid",
+    "elementList": [
+      {
+        "propertyCode": "106712345",
+        "thumbnail": "https://img4.idealista.com/blur/WEB_LISTING-M/0/id.pro.es.image.master/aa.jpg",
+        "numPhotos": 36,
+        "price": 795000,
+        "priceInfo": {
+          "price": {
+            "amount": 795000,
+            "currencySuffix": "€",
+            "priceDropValue": 0
+          }
+        },
+        "propertyType": "flat",
+        "operation": "sale",
+        "size": 128,
+        "exterior": true,
+        "rooms": 3,
+        "bathrooms": 2,
+        "address": "Piso en Montecarmelo, Madrid",
+        "province": "Madrid",
+        "municipality": "Madrid",
+        "district": "Fuencarral",
+        "neighborhood": "Montecarmelo",
+        "country": "es",
+        "latitude": 40.497,
+        "longitude": -3.708,
+        "showAddress": false,
+        "url": "https://www.idealista.com/inmueble/106712345/",
+        "description": "Piso exterior reformado con terraza, garaje y trastero. Urbanización con piscina.",
+        "multimedia": {
+          "images": [
+            {"url": "https://img4.idealista.com/aa/1.jpg", "tag": "living"},
+            {"url": "https://img4.idealista.com/aa/2.jpg", "tag": "kitchen"}
+          ]
+        },
+        "priceByArea": 6211,
+        "hasLift": true,
+        "floor": "4",
+        "status": "good",
+        "newDevelopment": false
+      },
+      {
+        "propertyCode": "SIN-PRECIO",
+        "thumbnail": "https://img4.idealista.com/blur/WEB_LISTING-M/0/id.pro.es.image.master/bb.jpg",
+        "propertyType": "flat",
+        "operation": "sale",
+        "size": 100,
+        "rooms": 3,
+        "bathrooms": 1,
+        "municipality": "Madrid",
+        "neighborhood": "Las Tablas",
+        "url": "https://www.idealista.com/inmueble/SIN-PRECIO/",
+        "description": "Anuncio incompleto: la API no ha devuelto el precio."
+      },
+      {
+        "propertyCode": "106799999",
+        "thumbnail": "https://img4.idealista.com/blur/WEB_LISTING-M/0/id.pro.es.image.master/cc.jpg",
+        "numPhotos": 51,
+        "price": 1050000,
+        "propertyType": "chalet",
+        "operation": "sale",
+        "size": 240,
+        "exterior": true,
+        "rooms": 4,
+        "bathrooms": 3,
+        "address": "Chalet en Mirasierra, Madrid",
+        "province": "Madrid",
+        "municipality": "Madrid",
+        "district": "Fuencarral",
+        "neighborhood": "Mirasierra",
+        "country": "es",
+        "latitude": 40.4855,
+        "longitude": -3.7205,
+        "showAddress": false,
+        "url": "https://www.idealista.com/inmueble/106799999/",
+        "description": "Chalet independiente con jardín y piscina privada.",
+        "multimedia": {
+          "images": [
+            {"url": "https://img4.idealista.com/cc/1.jpg", "tag": "facade"}
+          ]
+        },
+        "priceByArea": 4375,
+        "hasLift": false,
+        "floor": "bj",
+        "status": "good",
+        "newDevelopment": false
+      }
+    ]
+  }
+}

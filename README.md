@@ -26,15 +26,40 @@ pytest -q
 
 ## En GitHub, sin tener el ordenador encendido
 
-El cron vive en `.github/workflows/buscar.yml` y corre solo: novedades de lunes a
-sábado, barrido completo los domingos. La web sigue siendo local (`uvicorn`), pero
-eso ya no obliga a tener el ordenador encendido para *buscar*.
+El cron vive en `.github/workflows/buscar.yml` y corre solo: un barrido completo
+cada mañana. La web sigue siendo local (`uvicorn`), pero eso ya no obliga a tener
+el ordenador encendido para *buscar*.
 
 **Reparto de propiedad, y es lo importante de entender:** GitHub es el dueño de
 los anuncios, precios, notas y cuota. **Tu máquina es la dueña de tus
 valoraciones.** Están en el mismo fichero SQLite, así que si te bajaras la BD de
 GitHub a lo bruto te borrarías los votos. Por eso hay una importación que respeta
 lo tuyo, y por eso la BD **no** se commitea a `main`: vive en una rama aparte.
+
+### ⚠️ El proveedor tiene la API apagada (comprobado el 16-07-2026)
+
+Todo está montado y apuntando a la API real, pero **RapidAPI no deja llegar a
+ella**: devuelve `405 The API provider has disabled request access to the API`.
+
+No es un fallo de configuración, y está comprobado:
+
+- Sale igual **sin mandar clave ninguna**, en **todas** las rutas (incluida `/`),
+  con GET y con POST. La pasarela rechaza antes de mirar quién eres.
+- Un host inventado devuelve `404 API doesn't exists`, así que la nuestra existe
+  y lo que está apagado es el acceso.
+- Pasa lo mismo en las **otras** APIs de Idealista de RapidAPI (`idealista7` de
+  scraperium, `idealista2` de apidojo). No es de esta suscripción.
+- El playground de RapidAPI falla con el mismo mensaje.
+
+**No hay nada que tocar para cuando vuelva.** El cron corre cada mañana contra la
+API real; mientras esté caída detecta el 405, sale con código **4**, no escribe
+nada y el job **termina en verde con un aviso** (si no, tendrías un email de error
+cada mañana por algo que no depende de ti). El día que la reactiven, el barrido
+del día siguiente funciona solo.
+
+Para ver el circuito entero sin gastar API —buscar, puntuar, mandar el email,
+empujar la BD a la rama `datos`—, lánzalo a mano desde *Actions → Buscar vivienda
+→ Run workflow* con **fuente = `mock`**.
 
 ### Puesta en marcha (una vez)
 
@@ -43,11 +68,33 @@ lo tuyo, y por eso la BD **no** se commitea a `main`: vive en una rama aparte.
    valores están en tu `.env`, que **nunca** se sube (está en `.gitignore`):
 
    `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASSWORD` `EMAIL_FROM` `EMAIL_TO`
-   `IDEALISTA_API_KEY` `IDEALISTA_API_SECRET`
+
+   Y `RAPIDAPI_KEY`, que es la que usa el conector real (con `mock` no se usa).
 
 3. Asegúrate de que `data/pois.json` está commiteado (el `.gitignore` lo permite
    a propósito): sin él, GitHub no puede puntuar la localización.
-4. Lánzalo a mano una vez desde la pestaña *Actions* para comprobar que va.
+4. Pon tu **día de corte** en `config.yaml` (`api.dia_corte`): el día del mes en
+   que RapidAPI reinicia tu contador, que es el día en que te suscribiste, **no el
+   1**. Está explicado abajo y equivocarse aquí es lo único de todo esto que puede
+   costarte dinero.
+5. Comprueba el circuito a mano desde *Actions → Buscar vivienda → Run workflow*
+   con **fuente = `mock`**. Lánzalo con `mock_fase: 1` y luego con `2`: verás
+   llegar el email de bajadas de precio, que es el circuito completo.
+
+A partir de ahí el cron ya corre solo contra la API real cada mañana. No hay
+ningún paso pendiente para "pasar a producción": en cuanto el proveedor reactive
+la API, empieza a funcionar sin tocar nada.
+
+### Cuando lleguen los primeros datos reales
+
+Borra los datos de mentira, que si no se quedarían mezclados con los reales:
+
+```bash
+python main.py --purgar mock
+```
+
+Las medianas de €/m² ya están acotadas por fuente, así que el mock no las
+contamina aunque se te olvide; pero seguiría apareciendo en la web.
 
 ### Traerte los resultados para ver la web
 
@@ -63,31 +110,85 @@ reescribe entera en cada ejecución. Un commit diario de un binario haría crece
 repositorio sin parar, y no hace falta: el histórico de precios ya está *dentro*
 de la base de datos, que es donde tiene sentido.
 
-## La cuota manda: dos ritmos, no uno
+## De dónde salen los anuncios: RapidAPI, no la API oficial
 
-La cuota de la API de Idealista **no está publicada y no es de autoservicio**: te
-la comunican al aprobarte el acceso. Ponla en `config.yaml` (`api.cuota_mensual`)
-en cuanto la sepas — el 100 que hay ahí es una suposición. Lo único confirmado es
-el tope de **50 resultados por página**.
+El conector real es `src/sources/rapidapi.py`, contra el proveedor **happyendpoint
+(`idealista17`)** de RapidAPI. Conviene saber sobre qué está construido esto: **no
+es la API oficial de Idealista**, es un revendedor que raspa el portal y lo sirve
+en JSON. El formato de respuesta lo decide él y puede cambiar sin avisar. La API
+oficial no es de autoservicio y no tenemos acceso aprobado.
 
-Un barrido completo de la zona norte cuesta del orden de 4 a 8 páginas. Hacerlo a
-diario serían 150–270 peticiones al mes, así que **el barrido diario completo no
-cabe**. La salida es partir el trabajo, porque las dos señales no necesitan la
-misma frecuencia:
+Lo que hace que el diseño se sostenga es que el `propertyCode` que devuelve **sí
+es el de Idealista** (coincide con el número de la URL del anuncio). De esa clave
+cuelga el histórico de precios entero: si el proveedor empezara a inventarse los
+IDs, cada día entraría todo como nuevo y el histórico dejaría de construirse *en
+silencio*, sin ningún error. Hay un test que lo vigila.
 
-```cron
-# Diario: solo lo publicado esta semana. 1-2 páginas.
-0 8 * * *   cd /ruta/home-search && .venv/bin/python main.py --source idealista
+`src/sources/idealista.py` es el conector de la API oficial. Está escrito pero
+**nunca se ha ejecutado**, y sus fixtures están grabados contra un formato que no
+es el que recibimos. Se conserva por si algún día llega el acceso; se usa con
+`--source idealista-oficial`. Los dos guardan bajo el mismo nombre de fuente
+(`idealista`) a propósito: son los mismos anuncios con el mismo código, así que el
+histórico continuaría sin cortarse al cambiar de uno a otro.
 
-# Domingos: barrido completo. Es la ÚNICA forma de ver bajadas de precio, porque
-# un piso publicado hace tres meses que baja hoy no sale en el filtro de novedades.
-0 9 * * 0   cd /ruta/home-search && .venv/bin/python main.py --source idealista --completo
-```
+### La cuota ya no manda: un solo barrido, diario y completo
 
-Eso son unas 88 peticiones al mes: novedades cada día, bajadas cada semana. El
-guardarraíl (`src/cuota.py`) corta en seco antes de pasarse y reserva unas cuantas
-peticiones intocables, porque quedarse a cero a mitad de mes te deja ciego hasta
-el día 1.
+El plan PRO son **15.500 peticiones al mes y 1 por segundo**. A 50 anuncios por
+página (`result_count`, cuyo defecto son 30), un barrido completo de la zona norte
+cuesta del orden de 20 a 40 peticiones: **cabe entero todos los días gastando
+menos del 10% del mes**.
+
+Esto sustituye a la estrategia de dos ritmos que hubo antes (novedades a diario,
+catálogo completo los domingos), que existía porque se dio por supuesta una cuota
+de 100 al mes. Además de sobrar complejidad, aquello tenía un problema de fondo:
+**las bajadas de precio solo se ven en un barrido completo**, porque un piso
+publicado hace tres meses que baja hoy no sale en el filtro de novedades. Con un
+barrido semanal podías enterarte de una bajada con seis días de retraso. Ahora se
+detectan al día siguiente, que es la razón de ser de todo esto.
+
+El guardarraíl (`src/cuota.py`) sigue: corta en seco antes de pasarse y reserva
+peticiones intocables, porque quedarse a cero a mitad de ciclo te deja ciego hasta
+que renueve. Con `reserva: 500`, el corte efectivo son 15.000 y no 15.500: esos
+500 son el margen. Y hay un tope de páginas por barrido (`api.paginas_max`) que no
+es una optimización sino una red de seguridad: si un día se cae `precio_max` del
+`config.yaml`, la búsqueda pasa de ~30 páginas a 5.571 y te funde el ciclo en una
+sola ejecución.
+
+### El ciclo de facturación no es el mes natural
+
+**`api.dia_corte` es lo único de todo esto que puede costarte dinero si está mal.**
+RapidAPI reinicia tu contador el día que te suscribiste, no el 1. Si te suscribiste
+un día 20 y contáramos por mes natural, podrías gastar la cuota entera del 20 al 31
+y **otra vez** del 1 al 19: el doble dentro del mismo ciclo de facturación, y ahí
+llega el recargo. Por eso `Cuota.gastadas` cuenta desde el inicio del ciclo real.
+
+Y hay que ser honesto con lo que este guardarraíl **no** puede prometer:
+
+- Solo cuenta lo que ve, y solo ve **su** base de datos. El cron de GitHub y tu
+  portátil tienen bases distintas: lo que gastes en local no lo sabe GitHub.
+- No sabe lo que dice el contador de RapidAPI, que es el que factura.
+
+Con ~30 peticiones diarias sobre un plan de 15.500 el margen es enorme, pero **la
+única garantía de verdad contra el cobro está en el panel de RapidAPI**, quitando
+el *overage*. Esto es un cinturón, no un contrato.
+
+### Dos trampas de esta API que ya están resueltas
+
+**El idioma.** El parámetro `language` viene por defecto en `en`, así que las
+descripciones llegan **en inglés**. Las palabras clave de `scoring.texto` están en
+español: contra texto en inglés no casa ninguna, y la nota de texto se quedaría
+clavada en 50 para todos los anuncios sin dar ningún error. `config.yaml` fuerza
+`idioma: es`.
+
+**El orden de paginación.** Se pide `sort_order: oldest`, no `newest`. Con
+`newest`, un anuncio publicado a mitad de la paginación empuja a todos los demás
+una posición y nos saltaríamos uno. Con `oldest` lo nuevo cae al final y las
+páginas que ya hemos pedido no se mueven.
+
+Y una decisión deliberada: **no se filtra por `exterior` ni por barrio en la API**,
+aunque el proveedor deje. Pedirle al servidor solo lo que cumple nuestros
+criterios sesgaría la mediana de €/m² con nuestros propios gustos y dejaría sin
+guardar el chalet de 1,3 M, que es justo el que queremos vigilar por si baja.
 
 `--mock-fase 2` hace que el mock devuelva "el día siguiente" (un anuncio baja de
 precio, otro sube, uno desaparece y aparece uno nuevo). Es la única forma de

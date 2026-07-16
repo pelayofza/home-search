@@ -110,24 +110,41 @@ scoring:
       hospital:  {optimo: 1500, malo: 6000, peso: 0.20}
 
 api:
-  # OJO: este número te lo tiene que decir Idealista al aprobarte el acceso. No
-  # está publicado en ninguna parte y NO es de autoservicio. Ponlo en cuanto lo
-  # sepas: hasta entonces esto es una suposición, no un dato.
-  cuota_mensual: 100
-  # Peticiones que no se gastan ni queriendo. Quedarte a cero a mitad de mes te
-  # deja ciego hasta el día 1.
-  reserva: 5
+  # Plan PRO de RapidAPI (proveedor happyendpoint / idealista17). Esto ya NO es
+  # una suposición: es el límite publicado del plan contratado.
+  cuota_mensual: 15500
+  # Peticiones que no se gastan ni queriendo, y por tanto el margen real contra
+  # el recargo: el guardarraíl corta en 15.000, no en 15.500. Un barrido completo
+  # son ~20-40, así que esto da para una docena larga de barridos de emergencia.
+  reserva: 500
+
+  # Día del mes en que RapidAPI reinicia tu contador: NO es el 1, es el día en que
+  # te suscribiste. Míralo en tu panel y ponlo aquí. Si te suscribiste un 20 y
+  # esto se queda en 1, el guardarraíl te dejaría gastar la cuota entera del 20 al
+  # 31 y otra vez del 1 al 19: el doble dentro del mismo ciclo de facturación, que
+  # es justo el recargo que quieres evitar.
+  dia_corte: 16
+
+  # Tope de páginas por barrido. Es una red de seguridad, no una optimización:
+  # si un día se cae `precio_max` de aquí abajo, la búsqueda pasa de ~30 páginas
+  # a 5.571 y te funde el mes entero en una sola ejecución.
+  paginas_max: 60
 
   # Lo que se le pide a la API. A PROPÓSITO más ancho que `filtros`: hay que
   # guardar el chalet de 1,3 M para enterarse el día que baje a 1,05 M y entre en
   # presupuesto, y para que la mediana del barrio no salga sesgada por nuestros
-  # propios criterios.
+  # propios criterios. Por lo mismo NO se filtra aquí por `exterior` ni por
+  # barrio, aunque la API deje: eso se hace en casa.
   busqueda:
     center: "40.4950,-3.7000"   # zona norte de Madrid
-    distance: 5000              # metros
+    radius_km: 5                # la API admite hasta 15
     precio_max: 1400000         # el filtro son 1.100.000
     m2_min: 90                  # el filtro son 110
     habitaciones_min: 3
+    # El defecto de la API es `en`. Sin esto las descripciones llegan en inglés y
+    # las palabras clave de `scoring.texto` (que están en español) no casan con
+    # nada: la nota de texto se quedaría en 50 para todos y no lo notarías.
+    idioma: es
 
 almacenamiento:
   db_path: data/listings.db

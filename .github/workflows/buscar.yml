@@ -4,14 +4,22 @@ on:
   schedule:
     # Las horas de cron en GitHub son UTC. En horario de verano peninsular
     # (UTC+2), 06:10 UTC son las 08:10 de la mañana.
-    - cron: "10 6 * * 1-6"   # de lunes a sábado: solo lo publicado esta semana
-    - cron: "10 7 * * 0"     # domingos: barrido completo (el único que ve bajadas)
+    #
+    # Un solo barrido diario, y COMPLETO. Antes había dos cadencias (novedades a
+    # diario, catálogo entero los domingos) porque se daba por hecha una cuota de
+    # 100 peticiones al mes. El plan PRO de RapidAPI son 15.500, y un barrido
+    # completo cuesta ~20-40: cabe entero todos los días gastando menos del 10%
+    # del mes. Además de simplificar, arregla el fondo del asunto: las bajadas de
+    # precio solo se ven en un barrido completo, así que antes podías enterarte
+    # de una con seis días de retraso.
+    - cron: "10 6 * * *"
   workflow_dispatch:
     inputs:
-      completo:
-        description: "Barrido completo (gasta más cuota)"
-        type: boolean
-        default: false
+      fuente:
+        description: "De dónde bajar los anuncios (elige 'mock' para probar el circuito sin API)"
+        type: choice
+        options: ["", "idealista", "mock"]
+        default: ""
       mock_fase:
         description: "Solo con la fuente 'mock': 1 = primer día, 2 = al día siguiente (bajadas)"
         type: choice
@@ -24,14 +32,16 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # De dónde se bajan los anuncios. Está en 'mock' hasta que lleguen las claves
-  # de Idealista: así el circuito entero (buscar → puntuar → email → guardar la
-  # BD) se puede ver funcionando sin API.
+  # De dónde se bajan los anuncios. Ya apunta a la API real: mientras el proveedor
+  # la tenga caída, el job termina en verde con un aviso y no toca nada, y el día
+  # que la reactiven empieza a funcionar solo, sin que haya que venir a tocar nada.
   #
-  # PARA PASAR A PRODUCCIÓN no hace falta tocar este fichero: crea una variable
-  # de repositorio FUENTE=idealista en Settings → Secrets and variables →
-  # Actions → Variables. Esta línea la respeta.
-  FUENTE: ${{ vars.FUENTE || 'mock' }}
+  # Para probar el circuito entero (buscar → puntuar → email → guardar la BD) sin
+  # gastar API, lánzalo a mano con fuente = mock.
+  #
+  # Se puede fijar sin editar este fichero con una variable de repositorio FUENTE
+  # en Settings → Secrets and variables → Actions → Variables.
+  FUENTE: ${{ inputs.fuente || vars.FUENTE || 'idealista' }}
 
 jobs:
   buscar:
@@ -67,24 +77,24 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          IDEALISTA_API_KEY: ${{ secrets.IDEALISTA_API_KEY }}
-          IDEALISTA_API_SECRET: ${{ secrets.IDEALISTA_API_SECRET }}
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         run: |
-          # El barrido completo va los domingos y cuando se pide a mano.
-          # Con el mock da igual (siempre devuelve el lote entero), pero así el
-          # circuito es el mismo que será en producción.
-          if [ "${{ github.event.schedule }}" = "10 7 * * 0" ] || \
-             [ "${{ inputs.completo }}" = "true" ]; then
-            echo "::notice::Fuente '$FUENTE', barrido COMPLETO (detecta bajadas de precio)"
-            COMPLETO="--completo"
-          else
-            echo "::notice::Fuente '$FUENTE', barrido de novedades"
-            COMPLETO=""
-          fi
+          echo "::notice::Fuente '$FUENTE', barrido completo"
 
-          python main.py --source "$FUENTE" \
-                         --mock-fase "${{ inputs.mock_fase || 1 }}" \
-                         $COMPLETO
+          set +e
+          python main.py --source "$FUENTE" --mock-fase "${{ inputs.mock_fase || 1 }}"
+          CODIGO=$?
+          set -e
+
+          # 4 = el proveedor tiene la API apagada (405). No es un fallo nuestro y no
+          # hay nada que arreglar, así que el job no se pone en rojo: si no, tendrías
+          # un email de error cada mañana por algo que no depende de ti. No se ha
+          # escrito nada; mañana se reintenta y, cuando vuelva, sigue solo.
+          if [ $CODIGO -eq 4 ]; then
+            echo "::warning::La API del proveedor sigue caída. No se ha tocado nada; se reintenta mañana."
+            exit 0
+          fi
+          exit $CODIGO
 
       - name: Cuánta cuota queda
         if: always()

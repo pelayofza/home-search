@@ -33,6 +33,21 @@ _N_BAJADAS = (
     " AND e.property_code = l.property_code AND e.tipo = 'bajada')"
 )
 
+
+def inicio_de_ciclo(dia_corte: int, ahora: datetime) -> datetime:
+    """Cuándo empezó el ciclo de facturación que está corriendo ahora mismo."""
+    # Se topa en 28 a propósito: si tu corte fuera el 31, en febrero no existe y
+    # `replace(day=31)` reventaría. Adelantarlo unos días solo hace el contador
+    # más conservador, que es el lado correcto por el que equivocarse.
+    dia = max(1, min(28, int(dia_corte)))
+    if ahora.day >= dia:
+        inicio = ahora.replace(day=dia)
+    else:
+        # Todavía no hemos llegado al corte de este mes: el ciclo viene del anterior.
+        mes_anterior = ahora.replace(day=1) - timedelta(days=1)
+        inicio = mes_anterior.replace(day=dia)
+    return inicio.replace(hour=0, minute=0, second=0, microsecond=0)
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS listings (
     source         TEXT NOT NULL,
@@ -715,6 +730,23 @@ class Store:
         return self.conn.execute(
             "SELECT COUNT(*) FROM api_calls WHERE source = ? AND ts LIKE ?",
             (source, f"{mes}%"),
+        ).fetchone()[0]
+
+    def llamadas_del_ciclo(
+        self, source: str, dia_corte: int = 1, ahora: datetime | None = None
+    ) -> int:
+        """Llamadas desde que empezó el ciclo de facturación en curso.
+
+        No es lo mismo que el mes natural, y la diferencia es la que te cuesta
+        dinero: RapidAPI reinicia tu contador el día que te suscribiste, no el 1.
+        Contando por mes natural con un corte el día 20 podrías gastar la cuota
+        entera del 20 al 31 (mes A) y otra vez del 1 al 19 (mes B) — el doble
+        dentro del mismo ciclo de facturación, y ahí llega el recargo.
+        """
+        inicio = inicio_de_ciclo(dia_corte, ahora or datetime.now())
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM api_calls WHERE source = ? AND ts >= ?",
+            (source, inicio.isoformat(timespec="seconds")),
         ).fetchone()[0]
 
     def consumo_por_mes(self, source: str) -> list[tuple[str, int]]:

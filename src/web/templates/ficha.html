@@ -4,6 +4,12 @@
 
 {% block contenido %}
 <article class="ficha">
+  {% if a.foto_url %}
+    <a href="{{ a.url }}" target="_blank" rel="noopener" class="foto-grande">
+      <img src="{{ a.foto_url }}" alt="Foto del anuncio" referrerpolicy="no-referrer">
+    </a>
+  {% endif %}
+
   <div class="cabecera">
     <div>
       <h1>{{ a.precio | miles }} €

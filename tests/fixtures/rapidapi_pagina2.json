@@ -1,0 +1,55 @@
+{
+  "success": true,
+  "data": {
+    "filters": {
+      "country": "es",
+      "search_type": "for_sale",
+      "property_type": "homes",
+      "sort_order": "oldest",
+      "minPrice": 0,
+      "maxPrice": 1400000
+    },
+    "total": 3,
+    "totalPages": 2,
+    "currentPage": 2,
+    "itemsPerPage": 50,
+    "numPaginations": 5,
+    "paginable": true,
+    "searchTitle": "Madrid",
+    "elementList": [
+      {
+        "propertyCode": "106788888",
+        "thumbnail": "https://img4.idealista.com/blur/WEB_LISTING-M/0/id.pro.es.image.master/dd.jpg",
+        "numPhotos": 22,
+        "price": 880000,
+        "propertyType": "semidetachedHouse",
+        "operation": "sale",
+        "size": 180,
+        "exterior": true,
+        "rooms": 4,
+        "bathrooms": 3,
+        "address": "Adosado en Sanchinarro, Madrid",
+        "province": "Madrid",
+        "municipality": "Madrid",
+        "district": "Hortaleza",
+        "neighborhood": "Sanchinarro",
+        "country": "es",
+        "latitude": 40.4915,
+        "longitude": -3.6595,
+        "showAddress": false,
+        "url": "https://www.idealista.com/inmueble/106788888/",
+        "description": "Adosado en urbanización cerrada, jardín, garaje para dos coches y trastero.",
+        "multimedia": {
+          "images": [
+            {"url": "https://img4.idealista.com/dd/1.jpg", "tag": "facade"}
+          ]
+        },
+        "priceByArea": 4889,
+        "hasLift": false,
+        "floor": "bj",
+        "status": "good",
+        "newDevelopment": false
+      }
+    ]
+  }
+}

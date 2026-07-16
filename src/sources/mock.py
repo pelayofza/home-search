@@ -3,6 +3,10 @@
 La fase 2 es "el día siguiente": un anuncio baja de precio, otro sube, uno
 desaparece y aparece uno nuevo. Sin esto no hay forma de probar el histórico
 sin esperar días a que el mercado se mueva.
+
+Las fotos son de un servicio de placeholders: no son pisos, solo sirven para
+comprobar que la web y el email pintan bien las imágenes. Las de verdad salen del
+campo `thumbnail` que devuelve la API de Idealista.
 """
 
 from __future__ import annotations
@@ -30,7 +34,7 @@ _DIA_1 = [
         exterior=True,
         lat=40.4970,
         lon=-3.7080,
-        foto_url="https://example.com/fotos/MOCK-001.jpg",
+        foto_url="https://picsum.photos/seed/MOCK-001/480/360",
         descripcion="Piso exterior reformado con terraza, garaje y trastero. Urbanización con piscina.",
     ),
     Listing(
@@ -47,7 +51,7 @@ _DIA_1 = [
         exterior=True,
         lat=40.4855,
         lon=-3.7205,
-        foto_url="https://example.com/fotos/MOCK-002.jpg",
+        foto_url="https://picsum.photos/seed/MOCK-002/480/360",
         descripcion="Chalet independiente con jardín y piscina privada.",
     ),
     # Fuera de presupuesto hoy. Se guarda igualmente: en la fase 2 baja y entra.
@@ -65,7 +69,7 @@ _DIA_1 = [
         exterior=True,
         lat=40.4930,
         lon=-3.7350,
-        foto_url="https://example.com/fotos/MOCK-003.jpg",
+        foto_url="https://picsum.photos/seed/MOCK-003/480/360",
         descripcion="Chalet de obra nueva a estrenar, parcela de 600 m² con jardín.",
     ),
     # Interior: no pasa los filtros, pero sí entra en la muestra de comparables.
@@ -83,7 +87,7 @@ _DIA_1 = [
         exterior=False,
         lat=40.5085,
         lon=-3.6790,
-        foto_url="https://example.com/fotos/MOCK-004.jpg",
+        foto_url="https://picsum.photos/seed/MOCK-004/480/360",
         descripcion="Piso interior muy tranquilo, patio interior, sin ruido de calle.",
     ),
     Listing(
@@ -100,7 +104,7 @@ _DIA_1 = [
         exterior=True,
         lat=40.4915,
         lon=-3.6595,
-        foto_url="https://example.com/fotos/MOCK-005.jpg",
+        foto_url="https://picsum.photos/seed/MOCK-005/480/360",
         descripcion="Adosado en urbanización cerrada, jardín, garaje para dos coches y trastero.",
     ),
 ]
@@ -127,7 +131,7 @@ _DIA_2 = [
         exterior=True,
         lat=40.4985,
         lon=-3.7055,
-        foto_url="https://example.com/fotos/MOCK-006.jpg",
+        foto_url="https://picsum.photos/seed/MOCK-006/480/360",
         descripcion="Piso luminoso a estrenar con terraza y plaza de garaje.",
     ),
 ]

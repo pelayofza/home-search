@@ -29,16 +29,27 @@ from src.scoring import calibracion
 from src.sources import Source
 from src.sources.idealista import IdealistaSource
 from src.sources.mock import MockSource
+from src.sources.rapidapi import IdealistaRapidApiSource, ProveedorCaido
 from src.store import Store
 
 log = logging.getLogger("home-search")
 
-SOURCES = ("mock", "idealista")
+SOURCES = ("mock", "idealista", "idealista-oficial")
 
 
 def crear_source(nombre: str, config: dict, cuota: Cuota) -> Source:
-    """El mock no gasta cuota; Idealista sí, y por eso recibe el guardarraíl."""
+    """El mock no gasta cuota; Idealista sí, y por eso recibe el guardarraíl.
+
+    `idealista` es RapidAPI, que es lo que tenemos contratado. `idealista-oficial`
+    es el conector de la API oficial de Idealista: está escrito pero nunca se ha
+    llegado a ejecutar, porque el acceso no es de autoservicio y no nos lo han
+    aprobado. Los dos guardan bajo el mismo nombre de fuente ("idealista") a
+    propósito: son los mismos anuncios con el mismo `property_code`, así que el
+    histórico continuaría sin cortarse si algún día se cambia de uno a otro.
+    """
     if nombre == "idealista":
+        return IdealistaRapidApiSource(config, cuota)
+    if nombre == "idealista-oficial":
         return IdealistaSource(config, cuota)
     return MockSource(config)
 
@@ -50,8 +61,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--completo",
         action="store_true",
-        help="barrido completo (todas las páginas). Es la ÚNICA forma de ver bajadas de "
-        "precio, pero cuesta cuota: úsalo semanalmente, no a diario",
+        help="solo para --source idealista-oficial: barrido completo en vez de solo las "
+        "novedades de la semana. Con RapidAPI se ignora, porque ahí la cuota da de sobra "
+        "para barrer entero todos los días y siempre se hace",
     )
     p.add_argument(
         "--dry-run",
@@ -143,7 +155,9 @@ def run(args: argparse.Namespace) -> int:
 
         # Un barrido de solo novedades no ha mirado el catálogo entero: dar por
         # retirado lo que no ha salido sería absurdo, porque nunca iba a salir.
-        if not args.completo and args.source == "idealista":
+        # Solo aplica al conector oficial: RapidAPI barre siempre entero, y ahí
+        # una ausencia sí significa que el anuncio ya no está.
+        if isinstance(source, IdealistaSource) and not args.completo:
             novedades = [n for n in novedades if n.cambio is not Cambio.DESAPARECIDO]
 
         if args.dry_run:
@@ -216,6 +230,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         return run(args)
+    except ProveedorCaido as e:
+        # Código propio para que el cron lo distinga de un fallo nuestro y no te
+        # mande un aviso de error cada mañana por algo que no puedes arreglar.
+        # No se ha escrito nada: mañana se reintenta y, cuando vuelva, sigue solo.
+        log.warning("la API del proveedor está caída: %s", e)
+        return 4
     except CuotaAgotada as e:
         log.error("cuota agotada: %s", e)
         return 3

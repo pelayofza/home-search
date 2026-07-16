@@ -29,6 +29,18 @@
       e.detail.target.innerHTML =
         '<p class="aviso">No hay conexión con el servidor. ¿Sigue vivo uvicorn?</p>';
     });
+
+    // Una foto que no carga (anuncio retirado, CDN que nos bloquea) dejaría el
+    // icono de imagen rota del navegador. Mejor un hueco discreto que diga por qué.
+    // En fase de captura: los eventos 'error' de <img> no burbujean.
+    document.body.addEventListener("error", (e) => {
+      const img = e.target;
+      if (img.tagName !== "IMG") return;
+      const hueco = document.createElement("span");
+      hueco.className = "sin-foto";
+      hueco.textContent = "foto no disponible";
+      img.replaceWith(hueco);
+    }, true);
   </script>
 </body>
 </html>

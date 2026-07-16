@@ -1,4 +1,13 @@
 <tr class="{{ 'descartada' if a.opinion == 'descartado' }}">
+  <td class="foto">
+    {% if a.foto_url %}
+      <!-- Sin `referrerpolicy`, el CDN de Idealista ve que la petición viene de
+           localhost y puede negarse a servir la imagen. -->
+      <img src="{{ a.foto_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+    {% else %}
+      <span class="sin-foto">sin foto</span>
+    {% endif %}
+  </td>
   <td>
     {% if a.score is not none %}
       <span class="nota {{ 'buena' if a.score >= 65 else 'mala' if a.score < 45 else '' }}">

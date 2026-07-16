@@ -76,6 +76,51 @@ def test_solo_bajadas(cliente):
     assert codigos(cliente.get("/tabla", params={"solo_bajadas": "true"}).text) == ["A"]
 
 
+# --- fotos -------------------------------------------------------------------
+
+
+@pytest.fixture
+def cliente_con_fotos(tmp_path, monkeypatch, listing_factory):
+    db = tmp_path / "fotos.db"
+    with Store(db) as s:
+        s.sync(
+            "mock",
+            [
+                listing_factory(property_code="CON", foto_url="https://img.idealista.com/1.jpg"),
+                listing_factory(property_code="SIN", foto_url=None),
+            ],
+        )
+    monkeypatch.setattr(web, "DB", str(db))
+    return TestClient(web.app)
+
+
+def test_la_tabla_enseña_la_foto(cliente_con_fotos):
+    html = cliente_con_fotos.get("/tabla").text
+    assert 'src="https://img.idealista.com/1.jpg"' in html
+
+
+def test_pide_la_foto_sin_referer(cliente_con_fotos):
+    """El CDN de Idealista puede negarse a servirla si ve que venimos de localhost."""
+    html = cliente_con_fotos.get("/tabla").text
+    assert 'referrerpolicy="no-referrer"' in html
+
+
+def test_un_anuncio_sin_foto_no_deja_un_hueco_roto(cliente_con_fotos):
+    html = cliente_con_fotos.get("/tabla").text
+    assert html.count("sin-foto") == 1, "solo el que no tiene foto"
+    assert html.count("<img") == 1
+
+
+def test_la_ficha_enseña_la_foto_grande_y_enlaza_al_anuncio(cliente_con_fotos):
+    html = cliente_con_fotos.get("/anuncio/mock/CON").text
+    assert "foto-grande" in html
+    assert 'src="https://img.idealista.com/1.jpg"' in html
+
+
+def test_la_ficha_sin_foto_no_pinta_la_imagen(cliente_con_fotos):
+    assert "foto-grande" not in cliente_con_fotos.get("/anuncio/mock/SIN").text
+
+
 def test_la_ficha_enlaza_al_anuncio_original(cliente):
     html = cliente.get("/anuncio/mock/A").text
     assert 'href="https://example.com/X-1"' in html
