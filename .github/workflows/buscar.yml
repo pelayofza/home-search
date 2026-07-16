@@ -25,6 +25,11 @@ on:
         type: choice
         options: ["1", "2"]
         default: "1"
+      purgar:
+        description: "Borra TODO lo de esta fuente antes de buscar. Úsalo una vez con 'mock' al llegar los primeros datos reales"
+        type: choice
+        options: ["", "mock"]
+        default: ""
 
 # Dos ejecuciones a la vez se pisarían la base de datos y falsearían la cuota.
 concurrency:
@@ -68,6 +73,16 @@ jobs:
           else
             echo "No hay rama 'datos' todavía: se empieza de cero."
           fi
+
+      # `--purgar` en local no sirve para esto: los datos de mentira viven en la BD
+      # que genera GitHub, y cada importación te los traería de vuelta. Hay que
+      # borrarlos aquí, en la BD de la rama `datos`, antes de que se mezclen con
+      # los reales en la web.
+      - name: Purgar una fuente
+        if: inputs.purgar != ''
+        run: |
+          echo "::warning::Borrando TODO lo de la fuente '${{ inputs.purgar }}'"
+          python main.py --purgar "${{ inputs.purgar }}"
 
       - name: Buscar, puntuar y notificar
         env:
