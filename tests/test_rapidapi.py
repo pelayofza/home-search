@@ -135,6 +135,20 @@ def test_saca_el_envoltorio_data(source):
     assert len(source.fetch()) == 3
 
 
+def test_lee_la_lista_tanto_si_es_listings_como_elementList(source, monkeypatch):
+    """`/property-search-by-coordinates` llama a la lista `listings`, no `elementList`.
+
+    Comprobado contra la API real el 2026-07-18. El primer JSON de ejemplo venía de
+    `/property-search`, que sí usa `elementList`; por eso se aceptan las dos.
+    """
+    from src.sources.rapidapi import _anuncios
+
+    uno = {"propertyCode": "X"}
+    assert _anuncios({"listings": [uno]}) == [uno]
+    assert _anuncios({"elementList": [uno]}) == [uno]
+    assert _anuncios({}) == []
+
+
 def test_un_anuncio_roto_no_tumba_el_barrido(source):
     """Traer esa página nos ha costado cuota: no la tiramos por un anuncio malo."""
     listings = source.fetch()

@@ -209,7 +209,7 @@ class IdealistaRapidApiSource(Source):
             )
             total_paginas = tope
 
-        elementos = list(primera.get("elementList") or [])
+        elementos = list(_anuncios(primera))
 
         for pagina in range(2, total_paginas + 1):
             if self.cuota.disponibles < 1:
@@ -220,7 +220,7 @@ class IdealistaRapidApiSource(Source):
                     total_paginas,
                 )
                 break
-            elementos.extend(self._pagina(pagina).get("elementList") or [])
+            elementos.extend(_anuncios(self._pagina(pagina)))
 
         return [l for e in elementos if (l := self._a_listing(e))]
 
@@ -252,6 +252,16 @@ class IdealistaRapidApiSource(Source):
                 "anuncio descartado por datos incompletos (%s): %s", err, e.get("propertyCode")
             )
             return None
+
+
+def _anuncios(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """La lista de anuncios dentro de `data`.
+
+    `/property-search-by-coordinates` la llama `listings`; otros endpoints del
+    mismo proveedor (y la API oficial) la llaman `elementList`. Se aceptan las dos
+    para no atarse a un endpoint concreto y no romper si cambian de uno a otro.
+    """
+    return list(data.get("listings") or data.get("elementList") or [])
 
 
 def _centro(texto: str) -> tuple[float, float]:
