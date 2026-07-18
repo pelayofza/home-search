@@ -46,7 +46,17 @@ MAX_POR_PAGINA = 50  # `result_count` admite 1-50; el defecto del proveedor es 3
 
 #: El plan PRO permite 1 petición por segundo. Sin freno, paginar en bucle cerrado
 #: dispara veinte peticiones en dos segundos y el proveedor responde 429.
-INTERVALO_MIN_S = 1.05  # un pelín por encima de 1s: el reloj de ellos no es el nuestro
+#:
+#: 1,05s parecía "un pelín por encima de 1s", pero en producción daba 429 ya en la
+#: segunda página: la ventana la cuenta el reloj del SERVIDOR (desde que recibe la
+#: petición, no desde que la enviamos), y con la latencia de red por medio 1,05s se
+#: solapaba con la ventana anterior. 1,6s deja margen de sobra y el barrido completo
+#: (9 páginas) sigue tardando unos 15s, que no es nada.
+INTERVALO_MIN_S = 1.6
+
+#: Un 429 casi nunca es la cuota mensual agotada (tenemos 15.500): es rate-limit
+#: transitorio. Se espera y se reintenta antes de darlo por perdido.
+MAX_REINTENTOS_429 = 4
 
 #: Red de seguridad, no una optimización. Si un día se cae `max_price` del config,
 #: la búsqueda pasa de 30 páginas a 5.571 y te funde el mes en una sola ejecución.
@@ -68,6 +78,15 @@ _TIPOS = {
 
 class RapidApiError(RuntimeError):
     pass
+
+
+class RateLimitPersistente(RapidApiError):
+    """429 que no se va ni tras varios reintentos con espera.
+
+    Se distingue del resto para que `fetch()` pueda cortar el barrido y devolver lo
+    que lleva, en vez de tirar el workflow entero: un rate-limit a mitad de la
+    paginación no debe perder las páginas que ya sí trajimos.
+    """
 
 
 class ProveedorCaido(RapidApiError):
@@ -157,35 +176,50 @@ class IdealistaRapidApiSource(Source):
         self._ultima_peticion = time.monotonic()
 
     def _pagina(self, pagina: int) -> dict[str, Any]:
+        # La cuota se apunta UNA vez por página, no por intento: los reintentos por
+        # rate-limit son ruido de transporte, no consumo lógico de la página.
         self.cuota.consumir(f"property-search?page={pagina}")
-        self._frenar()
-        r = requests.get(
-            SEARCH_URL,
-            headers=self._cabeceras(),
-            params=self._parametros(pagina),
-            timeout=60,
-        )
-        if r.status_code == 405 and "disabled" in r.text.lower():
-            raise ProveedorCaido(
-                "RapidAPI responde 405 'The API provider has disabled request access'. "
-                "No es un fallo de configuración tuyo: pasa igual sin mandar clave, en "
-                "todas las rutas y con cualquier método, y también en las otras APIs de "
-                "Idealista de RapidAPI. Está apagada del lado del proveedor. No hay nada "
-                "que tocar aquí: en cuanto la reactiven, esto vuelve a funcionar solo."
-            )
-        if r.status_code == 429:
-            raise RapidApiError(
-                "el proveedor responde 429: o has agotado el plan del mes, o vas a más "
-                "de 1 petición por segundo. Revisa api.cuota_mensual en config.yaml."
-            )
-        r.raise_for_status()
 
-        cuerpo = r.json()
-        if not cuerpo.get("success"):
-            # Devuelve HTTP 200 con success:false. Sin este control, el barrido
-            # seguiría como si nada y daría por desaparecido todo el catálogo.
-            raise RapidApiError(f"el proveedor ha devuelto success=false: {cuerpo}")
-        return cuerpo.get("data") or {}
+        for intento in range(1, MAX_REINTENTOS_429 + 1):
+            self._frenar()
+            r = requests.get(
+                SEARCH_URL,
+                headers=self._cabeceras(),
+                params=self._parametros(pagina),
+                timeout=60,
+            )
+            if r.status_code == 405 and "disabled" in r.text.lower():
+                raise ProveedorCaido(
+                    "RapidAPI responde 405 'The API provider has disabled request access'. "
+                    "No es un fallo de configuración tuyo: pasa igual sin mandar clave, en "
+                    "todas las rutas y con cualquier método, y también en las otras APIs de "
+                    "Idealista de RapidAPI. Está apagada del lado del proveedor. No hay nada "
+                    "que tocar aquí: en cuanto la reactiven, esto vuelve a funcionar solo."
+                )
+            if r.status_code == 429:
+                if intento == MAX_REINTENTOS_429:
+                    raise RateLimitPersistente(
+                        f"429 en la página {pagina} tras {MAX_REINTENTOS_429} intentos. "
+                        "Casi seguro rate-limit (tienes de sobra en la cuota mensual). "
+                        "Si se repite, sube INTERVALO_MIN_S."
+                    )
+                espera = _espera_tras_429(r, intento)
+                log.warning(
+                    "429 en la página %d (intento %d/%d): espero %.1fs y reintento",
+                    pagina, intento, MAX_REINTENTOS_429, espera,
+                )
+                time.sleep(espera)
+                continue
+
+            r.raise_for_status()
+            cuerpo = r.json()
+            if not cuerpo.get("success"):
+                # Devuelve HTTP 200 con success:false. Sin este control, el barrido
+                # seguiría como si nada y daría por desaparecido todo el catálogo.
+                raise RapidApiError(f"el proveedor ha devuelto success=false: {cuerpo}")
+            return cuerpo.get("data") or {}
+
+        raise AssertionError("inalcanzable: el bucle sale por return o por raise")
 
     def fetch(self) -> list[Listing]:
         primera = self._pagina(1)
@@ -220,7 +254,15 @@ class IdealistaRapidApiSource(Source):
                     total_paginas,
                 )
                 break
-            elementos.extend(_anuncios(self._pagina(pagina)))
+            try:
+                elementos.extend(_anuncios(self._pagina(pagina)))
+            except RateLimitPersistente as e:
+                # A mitad del barrido, un rate-limit que no cede no debe tirar el
+                # workflow y perder lo ya traído. Se corta y se devuelve lo que hay:
+                # el guardarraíl del store (umbral de fetch sospechoso) evita que un
+                # barrido parcial marque medio catálogo como desaparecido.
+                log.warning("%s. Corto el barrido y devuelvo las %d páginas que llevo.", e, pagina - 1)
+                break
 
         return [l for e in elementos if (l := self._a_listing(e))]
 
@@ -252,6 +294,17 @@ class IdealistaRapidApiSource(Source):
                 "anuncio descartado por datos incompletos (%s): %s", err, e.get("propertyCode")
             )
             return None
+
+
+def _espera_tras_429(r: requests.Response, intento: int) -> float:
+    """Cuánto esperar tras un 429: lo que diga el servidor, o un backoff creciente."""
+    cabecera = r.headers.get("Retry-After")
+    if cabecera:
+        try:
+            return min(30.0, float(cabecera))  # topado: no queremos colgarnos minutos
+        except ValueError:
+            pass
+    return min(30.0, 2.0 * intento)  # 2s, 4s, 6s...
 
 
 def _anuncios(data: dict[str, Any]) -> list[dict[str, Any]]:

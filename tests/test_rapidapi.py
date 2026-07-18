@@ -20,6 +20,7 @@ from src.sources.rapidapi import (
     IdealistaRapidApiSource,
     ProveedorCaido,
     RapidApiError,
+    RateLimitPersistente,
     _planta,
     _tipo,
 )
@@ -33,10 +34,11 @@ def _fixture(nombre: str) -> dict:
 
 
 class RespuestaFalsa:
-    def __init__(self, datos, status=200, texto=""):
+    def __init__(self, datos, status=200, texto="", headers=None):
         self._datos = datos
         self.status_code = status
         self.text = texto or json.dumps(datos)
+        self.headers = headers or {}
 
     def json(self):
         return self._datos
@@ -291,13 +293,69 @@ def test_el_tope_de_paginas_te_salva_de_fundirte_el_mes(store, config, api, capl
 # --- errores del proveedor ---------------------------------------------------
 
 
-def test_un_429_se_explica(store, config, api, monkeypatch):
+def test_un_429_puntual_se_reintenta_y_sale_bien(store, config, api, monkeypatch, sin_esperas):
+    """Un rate-limit transitorio no debe tumbar el barrido: se espera y se reintenta."""
+    fallos = {"n": 2}  # los dos primeros GET dan 429, el tercero ya va bien
+
+    def get(url, **kwargs):
+        if fallos["n"] > 0:
+            fallos["n"] -= 1
+            return RespuestaFalsa({}, status=429)
+        p = int((kwargs.get("params") or {}).get("page", 1))
+        return RespuestaFalsa(_fixture(f"rapidapi_pagina{p}.json"))
+
+    monkeypatch.setattr(rapidapi.requests, "get", get)
+    source = IdealistaRapidApiSource(config, Cuota(store, "idealista", config))
+
+    listings = source.fetch()
+    assert [l.property_code for l in listings] == ["106712345", "106799999", "106788888"]
+    assert sin_esperas, "no ha esperado tras el 429"
+
+
+def test_respeta_el_retry_after(store, config, monkeypatch, sin_esperas):
+    """Si el servidor dice cuánto esperar, se le hace caso (topado a 30s)."""
+    intentos = {"n": 0}
+
+    def get(url, **kwargs):
+        intentos["n"] += 1
+        if intentos["n"] == 1:
+            return RespuestaFalsa({}, status=429, headers={"Retry-After": "7"})
+        return RespuestaFalsa(_fixture("rapidapi_pagina1.json"))
+
+    monkeypatch.setattr(rapidapi.requests, "get", get)
+    monkeypatch.setenv("RAPIDAPI_KEY", "clave-de-prueba")
+    source = IdealistaRapidApiSource(config, Cuota(store, "idealista", config))
+    source.fetch()
+
+    assert 7.0 in sin_esperas, "no ha respetado el Retry-After del servidor"
+
+
+def test_un_429_que_no_cede_corta_el_barrido_sin_perder_lo_traido(
+    store, config, monkeypatch, sin_esperas
+):
+    """Si el rate-limit persiste en la página 2, se devuelve la 1 en vez de reventar."""
+    def get(url, **kwargs):
+        p = int((kwargs.get("params") or {}).get("page", 1))
+        if p == 1:
+            return RespuestaFalsa(_fixture("rapidapi_pagina1.json"))
+        return RespuestaFalsa({}, status=429)  # la página 2 nunca cede
+
+    monkeypatch.setattr(rapidapi.requests, "get", get)
+    monkeypatch.setenv("RAPIDAPI_KEY", "clave-de-prueba")
+    source = IdealistaRapidApiSource(config, Cuota(store, "idealista", config))
+
+    listings = source.fetch()
+    assert [l.property_code for l in listings] == ["106712345", "106799999"], "solo la página 1"
+
+
+def test_un_429_en_la_primera_pagina_si_revienta(store, config, api, monkeypatch, sin_esperas):
+    """En la página 1 no hay nada que salvar: que falle, para que se vea."""
     monkeypatch.setattr(
         rapidapi.requests, "get", lambda url, **kw: RespuestaFalsa({}, status=429)
     )
     source = IdealistaRapidApiSource(config, Cuota(store, "idealista", config))
 
-    with pytest.raises(RapidApiError, match="429"):
+    with pytest.raises(RateLimitPersistente):
         source.fetch()
 
 
