@@ -26,9 +26,18 @@ pytest -q
 
 ## En GitHub, sin tener el ordenador encendido
 
-El cron vive en `.github/workflows/buscar.yml` y corre solo: un barrido completo
-cada mañana. La web sigue siendo local (`uvicorn`), pero eso ya no obliga a tener
-el ordenador encendido para *buscar*.
+El cron vive en `.github/workflows/buscar.yml`. La web sigue siendo local
+(`uvicorn`), pero eso ya no obliga a tener el ordenador encendido para *buscar*.
+
+> **⏸️ Pausado el 24-10-2026.** El barrido diario está comentado en el workflow
+> porque se cancela la suscripción de RapidAPI. **Desuscribirse sin pausar el cron
+> no vale:** sin suscripción el proveedor responde `403`, que no es el `405`
+> indulgente, el job se pone en rojo y GitHub te manda un email de fallo cada
+> mañana. El disparo manual (`workflow_dispatch`) sigue vivo, así que con
+> fuente = `mock` puedes probar el circuito entero cuando quieras. Para reanudar,
+> descomenta el bloque `schedule:` y repasa antes `api.dia_corte` en
+> `config.yaml`: es el día en que te suscribiste y, si vuelves a suscribirte otro
+> día, el guardarraíl de cuota cuenta mal el ciclo.
 
 **Reparto de propiedad, y es lo importante de entender:** GitHub es el dueño de
 los anuncios, precios, notas y cuota. **Tu máquina es la dueña de tus
@@ -51,11 +60,12 @@ No es un fallo de configuración, y está comprobado:
   scraperium, `idealista2` de apidojo). No es de esta suscripción.
 - El playground de RapidAPI falla con el mismo mensaje.
 
-**No hay nada que tocar para cuando vuelva.** El cron corre cada mañana contra la
-API real; mientras esté caída detecta el 405, sale con código **4**, no escribe
-nada y el job **termina en verde con un aviso** (si no, tendrías un email de error
-cada mañana por algo que no depende de ti). El día que la reactiven, el barrido
-del día siguiente funciona solo.
+**No hay nada que tocar para cuando vuelva.** Con el cron activo, mientras la API
+esté caída se detecta el 405, se sale con código **4**, no se escribe nada y el job
+**termina en verde con un aviso** (si no, tendrías un email de error cada mañana por
+algo que no depende de ti). El día que la reactiven, el barrido del día siguiente
+funciona solo. Eso sigue siendo cierto, pero ahora mismo el barrido automático está
+pausado (ver arriba): hasta que se descomente el `schedule:`, no corre nada solo.
 
 Para ver el circuito entero sin gastar API —buscar, puntuar, mandar el email,
 empujar la BD a la rama `datos`—, lánzalo a mano desde *Actions → Buscar vivienda

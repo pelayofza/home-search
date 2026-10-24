@@ -1,18 +1,35 @@
 name: Buscar vivienda
 
 on:
-  schedule:
-    # Las horas de cron en GitHub son UTC. En horario de verano peninsular
-    # (UTC+2), 06:10 UTC son las 08:10 de la mañana.
-    #
-    # Un solo barrido diario, y COMPLETO. Antes había dos cadencias (novedades a
-    # diario, catálogo entero los domingos) porque se daba por hecha una cuota de
-    # 100 peticiones al mes. El plan PRO de RapidAPI son 15.500, y un barrido
-    # completo cuesta ~20-40: cabe entero todos los días gastando menos del 10%
-    # del mes. Además de simplificar, arregla el fondo del asunto: las bajadas de
-    # precio solo se ven en un barrido completo, así que antes podías enterarte
-    # de una con seis días de retraso.
-    - cron: "10 6 * * *"
+  # ⏸️ PAUSADO el 24-10-2026. El barrido automático está comentado A PROPÓSITO,
+  # no roto. Al cancelar la suscripción de RapidAPI no basta con desuscribirse y
+  # dejar el cron puesto: sin suscripción el proveedor responde 403, que NO es el
+  # 405 indulgente que `main.py` traduce a código 4 y job en verde. Un 403 cae en
+  # el `except Exception` genérico (código 1), así que tendrías el job en rojo y
+  # un email de fallo de GitHub cada mañana por algo que no hay que arreglar.
+  #
+  # PARA REANUDAR: descomenta el `- cron` de abajo (y la línea `schedule:`), y
+  # antes repasa `api.dia_corte` en config.yaml. Ese número es el día en que
+  # RapidAPI reinicia tu contador, o sea el día en que te suscribiste; si vuelves
+  # a suscribirte otro día del mes y se queda como está, el guardarraíl de cuota
+  # cuenta mal el ciclo y te deja gastar de más dentro de un mismo periodo de
+  # facturación. Revisa también `api.cuota_mensual` si cambias de plan.
+  #
+  # El disparo manual sigue vivo: con fuente = mock se prueba el circuito entero
+  # (buscar → puntuar → email → guardar la BD) sin API y sin suscripción.
+  #
+  # schedule:
+  #   # Las horas de cron en GitHub son UTC. En horario de verano peninsular
+  #   # (UTC+2), 06:10 UTC son las 08:10 de la mañana.
+  #   #
+  #   # Un solo barrido diario, y COMPLETO. Antes había dos cadencias (novedades a
+  #   # diario, catálogo entero los domingos) porque se daba por hecha una cuota de
+  #   # 100 peticiones al mes. El plan PRO de RapidAPI son 15.500, y un barrido
+  #   # completo cuesta ~20-40: cabe entero todos los días gastando menos del 10%
+  #   # del mes. Además de simplificar, arregla el fondo del asunto: las bajadas de
+  #   # precio solo se ven en un barrido completo, así que antes podías enterarte
+  #   # de una con seis días de retraso.
+  #   - cron: "10 6 * * *"
   workflow_dispatch:
     inputs:
       fuente:
